@@ -15,6 +15,18 @@ app.use(cors({
     methods: ['GET', 'POST'],
 }));
 
+
+
+// verify token 
+const verifyToken = async (token,userId)=>{
+  const checkToken = Jwt.verify(token,process.env.SECKRET_Key)
+  if (checkToken.payload !== userId) throw Error ("dont have token")
+    const currentUser = await UserModule.findById(userId)
+  if(!currentUser) throw Error ("you dont login in website")
+}
+
+
+
 const schema = buildSchema(`
   type User {
     id: Int
@@ -31,13 +43,13 @@ const schema = buildSchema(`
     users: [User],
     userById(id: Int!): User
     LoginUser(email:String,password:String):User
-    GetPostsById(userId:String!):[Post]
+    GetPostsById(token:String!,userId:String!):[Post]
   }
   type Mutation {
     registerUser(name: String!, email: String!, password: String!): User,
-    createPost(title:String!,userId:String!):Post
-    UpdatePost(PostID:String!,title:String):Post
-    DeletePost(PostID:String!):String
+    createPost(title:String!,userId:String!,token:String!):Post
+    UpdatePost(token:String!,PostID:String!,title:String):Post
+    DeletePost(token:String!,PostID:String!):String
   }
 `);
 
@@ -72,7 +84,9 @@ const auth = {
 },
 };
 const Posts={
-  createPost:async ({title,userId})=>{
+  createPost:async ({title,userId,token})=>{
+    
+   await verifyToken(token,userId)
     const post = new PostModule({title,userId})
     await post.save()  
     const UserForPost = await UserModule.findById(userId)
@@ -82,8 +96,9 @@ const Posts={
     }
      return PostNew
   },
-  GetPostsById:async ({userId})=>{
-    console.log(userId)
+  GetPostsById:async ({token,userId})=>{
+   await verifyToken(token,userId)
+
     const PostForUser = await PostModule.find({userId}).populate('userId')
      const Posts = PostForUser.map((post)=>({...post,name:post.userId.name}))
      console.log(Posts)
